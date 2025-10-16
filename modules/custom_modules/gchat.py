@@ -179,6 +179,8 @@ async def handle_voice_message(client, chat_id, bot_response):
             return True
     return False
 
+# ... (imports and unchanged code)
+
 # --- NEW GEMINI SDK CLIENT CREATION ---
 def get_genai_client():
     gemini_keys = db.get(settings_collection, "gemini_keys") or [gemini_key]
@@ -194,22 +196,10 @@ async def generate_gemini_response(input_data, chat_history, user_id):
     while retries > 0:
         try:
             client = genai.Client(api_key=gemini_keys[current_key_index])
-            if isinstance(input_data, (str,)):
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=input_data
-                )
-            elif isinstance(input_data, list):
-                # multimodal, images or files
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=input_data
-                )
-            else:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=str(input_data)
-                )
+            response = client.models.generate_content(
+                model=model_name,
+                contents=input_data
+            )
             bot_response = response.text.strip()
             full_history = db.get(history_collection, f"chat_history.{user_id}") or []
             full_history.append(bot_response)
@@ -226,13 +216,16 @@ async def generate_gemini_response(input_data, chat_history, user_id):
 
 async def upload_file_to_gemini(file_path, file_type):
     client = get_genai_client()
-    uploaded_file = client.files.upload(path=file_path)
-    while uploaded_file.state.name == "PROCESSING":
+    uploaded_file = client.files.upload(file_path)  # Must be positional!
+    while getattr(uploaded_file.state, "name", None) == "PROCESSING":
         await asyncio.sleep(10)
         uploaded_file = client.files.get(uploaded_file.name)
-    if uploaded_file.state.name == "FAILED":
+    if getattr(uploaded_file.state, "name", None) == "FAILED":
         raise ValueError(f"{file_type.capitalize()} failed to process.")
     return uploaded_file
+
+# ... (rest of your code unchanged)
+
 
 sticker_gif_buffer = defaultdict(list)
 sticker_gif_timer = {}
